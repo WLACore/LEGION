@@ -260,7 +260,6 @@ inline float GetGameTableColumnForClass(T const* row, int32 class_)
                 break;
         }
     }
-
     return 0.0f;
 }
 
