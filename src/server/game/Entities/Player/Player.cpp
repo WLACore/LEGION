@@ -2007,7 +2007,7 @@ void Player::Regenerate(Powers power)
         return;
 
     float addvalue = 0.0f;
-    if (!IsInCombat())
+    if (!IsInCombat() && power != POWER_INSANITY)
     {
         if (powerType->RegenInterruptTimeMS && GetMSTimeDiffToNow(m_combatExitTime) < uint32(powerType->RegenInterruptTimeMS))
             return;
@@ -29649,6 +29649,33 @@ void Player::UpdateShop(uint32 diff)
     CharacterDatabase.CommitTransaction(trans);
 }
 
+void Player::SetEffectiveLevelAndMaxItemLevel(uint32 effectiveLevel, uint32 maxItemLevel)
+{
+    float healthPct = GetHealthPct();
+    _RemoveAllItemMods();
+
+    SetUInt32Value(UNIT_FIELD_EFFECTIVE_LEVEL, effectiveLevel);
+    SetUInt32Value(UNIT_FIELD_MAXITEMLEVEL, maxItemLevel);
+
+    _ApplyAllItemMods();
+    UpdateAverageItemLevel();
+
+    uint32 basemana = 0;
+    sObjectMgr->GetPlayerClassLevelInfo(getClass(), GetEffectiveLevel(), basemana);
+
+    PlayerLevelInfo info;
+    sObjectMgr->GetPlayerLevelInfo(getRace(), getClass(), GetEffectiveLevel(), &info);
+
+    // save base values (bonuses already included in stored stats
+    for (uint8 i = STAT_STRENGTH; i < MAX_STATS; ++i)
+        SetCreateStat(Stats(i), info.stats[i]);
+
+    SetCreateHealth(0);
+    SetCreateMana(basemana);
+    UpdateAllStats();
+    SetHealth(CalculatePct(GetMaxHealth(), healthPct));
+}
+
 void Player::UpdateItemLevelAreaBasedScaling()
 {
     // @todo Activate pvp item levels during world pvp
@@ -29663,7 +29690,7 @@ void Player::UpdateItemLevelAreaBasedScaling()
         _ApplyAllItemMods();
         SetHealth(CalculatePct(GetMaxHealth(), healthPct));
     }
-    // @todo other types of power scaling such as timewalking
+    // @todo other types of power scaling
 }
 
 void Player::UnlockReagentBank()
@@ -29691,4 +29718,27 @@ uint8 Player::GetItemLimitCategoryQuantity(ItemLimitCategoryEntry const* limitEn
     }
 
     return limit;
+}
+
+void Player::SendCustomMessage(std::string const& opcode, std::string const& data/* = ""*/)
+{
+    std::ostringstream message;
+    message << opcode << "|" << data << "|";
+    ChatHandler(GetSession()).SendSysMessage(message.str().c_str());
+}
+
+void Player::SendCustomMessage(std::string const& opcode, std::vector<std::string> const& data)
+{
+    std::ostringstream message;
+    message << opcode << "|";
+
+    if (!data.empty())
+    {
+        for (auto const& elem : data)
+            message << elem << "| ";
+    }
+    else
+        message << " " << "|";
+
+    ChatHandler(GetSession()).SendSysMessage(message.str().c_str());
 }
