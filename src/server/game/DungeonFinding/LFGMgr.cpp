@@ -724,6 +724,14 @@ void LFGMgr::LeaveLfg(ObjectGuid guid, Optional<uint32> queueId /*= {}*/, bool d
     }
 }
 
+void LFGMgr::KickPlayer(Player* player)
+{
+    LeaveLfg(player->GetGUID());
+    player->RemoveAurasDueToSpell(LFG_SPELL_LUCK_OF_THE_DRAW);
+    player->SetEffectiveLevelAndMaxItemLevel(0, 0);
+    player->TeleportTo(player->m_homebindMapId, player->m_homebindX, player->m_homebindY, player->m_homebindZ, 0.0f);
+}
+
 WorldPackets::LFG::RideTicket const* LFGMgr::GetTicket(ObjectGuid guid) const
 {
     auto itr = PlayersStore.find(guid);
@@ -889,17 +897,15 @@ bool LFGMgr::CheckGroupRoles(LfgQueueRoleCount roleCount, LfgRolesMap& groles)
     if (groles.empty())
         return false;
 
+    if (roleCount.IsDamagesOnly())
+        return roleCount.minDamages <= groles.size() && groles.size() <= roleCount.maxDamages;
+
     uint8 damage = 0;
     uint8 tank = 0;
     uint8 healer = 0;
-    bool damagesOnly = roleCount.maxDamages == roleCount.GetMaxPlayers();
 
     for (auto& it : groles)
     {
-        // If LFGDungeons require only damages, we set everyone to damages
-        if (damagesOnly)
-            it.second = PLAYER_ROLE_DAMAGE;
-
         uint8 role = it.second & ~PLAYER_ROLE_LEADER;
         if (role == PLAYER_ROLE_NONE)
             return false;
@@ -2071,7 +2077,7 @@ std::string LFGMgr::DumpQueueInfo(bool full)
 
     for (auto& factionQueues: QueuesStore)
     {
-        o << "Number of Queues for team " << team++ << ": " << uint32(factionQueues.size()) << "\n";
+        o << "Number of Queues for team " << (team++) << ": " << uint32(factionQueues.size()) << "\n";
         for (auto& queue: factionQueues)
         {
             std::string const& queued = queue.second.DumpQueueInfo();
